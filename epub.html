@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>韩语 EPUB 标注器</title>
+ <link rel="stylesheet" href="epub.css">
+</head>
+<body>
+ <main class="shell">
+  <header class="top">
+   <div><p class="eyebrow">KOREAN EPUB ANNOTATOR</p><h1>韩语 EPUB 标注器</h1></div>
+   <nav role="tablist" class="tabs" aria-label="插件页面">
+    <button id="annotateTab" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="annotatePanel">标注</button>
+    <button id="settingsTab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanel">设置</button>
+   </nav>
+  </header>
+
+  <section id="annotatePanel" role="tabpanel" aria-labelledby="annotateTab">
+   <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="选择或拖入 EPUB">
+    <input id="epubFile" type="file" accept=".epub,application/epub+zip" hidden>
+    <img class="book-icon" src="icons/icon128.png" alt="" aria-hidden="true">
+    <strong>拖入 EPUB 文件</strong>
+    <span>或点击选择文件 · 仅支持无 DRM 的 EPUB</span>
+    <small id="selectedFile" class="selected-file"></small>
+   </div>
+
+   <div class="progress-wrap">
+    <div class="progress-heading"><span id="phase">尚未选择 EPUB</span><span id="percentage">0%</span></div>
+    <progress id="progress" value="0" max="100" aria-label="标注进度"></progress>
+    <p id="status" class="status" role="status" aria-live="polite">选择文件后自动开始标注。</p>
+    <p id="requestPlan" class="request-plan" role="status" aria-live="polite">选择 EPUB 后，将先完成全书分析并显示首轮 LLM 请求数量。</p>
+   </div>
+
+   <section id="manualPanel" class="manual" hidden aria-label="手动审核">
+    <div class="manual-heading"><h2>手动模型审核</h2><div class="manual-heading-actions"><button id="copyPrompt" type="button">复制请求</button><button id="downloadPrompt" type="button">下载提示词 TXT</button></div></div>
+    <p id="manualReviewMeta" class="manual-review-meta" aria-live="polite">当前没有等待审核的批次。</p>
+    <div id="manualReviewNotice" class="manual-review-notice" role="alert" aria-live="assertive" hidden></div>
+    <label for="manualPrompt">发送给大模型的请求</label>
+    <textarea id="manualPrompt" rows="8" readonly spellcheck="false"></textarea>
+    <label for="manualAnswer">粘贴模型返回的 JSON</label>
+    <textarea id="manualAnswer" rows="7" spellcheck="false" placeholder='{"batch_id":"...","results":[...]}'></textarea>
+    <div class="manual-controls"><span id="manualStatus" role="status"></span><div class="manual-control-actions"><button id="importAnswer" type="button">导入 JSON／TXT</button><input type="file" id="manualAnswerFile" accept=".json,.txt,application/json,text/plain" hidden><button id="pauseManualReview" type="button" hidden>暂停手动审核，返回继续选项</button><button id="submitAnswer" type="button" class="primary">提交答案</button></div></div>
+   </section>
+
+   <section id="reviewContinuation" class="review-continuation" aria-label="继续未完成审核" hidden>
+    <strong>仍有目标没有通过审核</strong>
+    <p id="reviewContinuationSummary" role="status">已保留全部有效答案。可以继续审核剩余目标，无需重新上传或分析 EPUB。</p>
+    <div class="review-continuation-actions">
+     <label for="continuationMode">接下来使用
+      <select id="continuationMode" aria-label="继续审核方式">
+       <option value="api">API 自动审核</option>
+       <option value="manual">手动复制请求并提交答案</option>
+      </select>
+     </label>
+     <button id="continueReview" type="button" class="primary">继续审核剩余目标</button>
+     <button id="finishWithNull" type="button">剩余目标全部按 null 处理并生成 EPUB</button>
+    </div>
+    <small>切换方式仅影响接下来的请求，已通过校验的答案不会重新发送；如果模型再次给出不合法的词源，仍可以继续选择其他方式。“按 null 完成”仅保留尚未通过审核的韩文原文，不会清除已有合法标注。</small>
+   </section>
+   <button id="retryConnection" class="retry-connection" type="button" hidden>恢复连接并继续当前批次</button>
+   <div class="epub-output-actions">
+    <button id="downloadEpub" class="download primary" type="button" disabled>下载标注后的 EPUB</button>
+    <button id="toggleDiagnostics" type="button" aria-expanded="false" aria-controls="epubDiagnostics">诊断 <span id="diagnosticCount">0</span></button>
+   </div>
+   <section id="epubDiagnostics" class="epub-diagnostics" aria-label="标注诊断信息" hidden>
+    <div class="epub-diagnostics-head">
+     <strong>本次 EPUB 标注诊断</strong>
+     <button id="downloadDiagnostics" type="button">下载诊断 TXT</button>
+    </div>
+    <p id="diagnosticSummary">尚无诊断记录</p>
+    <ol id="diagnosticEntries"></ol>
+   </section>
+  </section>
+
+  <section id="settingsPanel" role="tabpanel" aria-labelledby="settingsTab" hidden>
+    <div class="mode-settings">
+     <label><input id="hanjaMode" type="checkbox" checked>汉字词标注</label>
+     <label><input id="loanwordMode" type="checkbox" checked>外来语标注</label>
+     <label id="epubApiConcurrencyRow" class="epub-api-concurrency">API 同时请求数
+      <input id="epubApiConcurrency" type="number" min="1" step="1" value="1" inputmode="numeric">
+     </label>
+    </div>
+    <p id="epubApiConcurrencyHint" class="api-concurrency-hint">默认同时请求 1 批。实际并发不会超过本次 EPUB 的首轮计划请求总数。</p>
+    <iframe id="optionsFrame" title="网页标注器共用的引擎、词典与 API 设置" loading="lazy" src="options.html"></iframe>
+  </section>
+ </main>
+ <script type="module" src="epub-app.js"></script>
+</body>
+</html>
