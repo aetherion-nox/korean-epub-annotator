@@ -2,26 +2,37 @@ import {splitText} from './text-chunks.js';
 import {extractInlineHanjaPairs} from './inline-hanja-evidence.js';
 // Analyze original paragraph text once; keep existing per-node DOM rendering.
 export function createParagraphPlan(entries,readSource,blockSelector,{includeAdjacentSourceContext=false,preserveInlineHanja=false}={}){
- const groups=new Map(),byId=new Map(),sentences=[];
+ const groups=new Map();
  for(const entry of entries.values()){
   const element=entry.node.parentElement?.closest(blockSelector+',div,section,article,main')||entry.node.parentElement;
   if(!element)continue;
   let group=groups.get(element);
-  if(!group){const source=readSource(element);group={id:'p'+groups.size,element,text:source.text,runs:source.runs,runByNode:new Map(source.runs.map(r=>[r.node,r])),members:[],selected:[],results:new Map()};groups.set(element,group);}
-  const run=group.runByNode.get(entry.node);
-  if(!run||group.text.slice(run.start,run.end)!==entry.text)throw Error('段落原文与 DOM 位置不一致，已停止分析。');
-  group.members.push({entry,start:run.start,end:run.end});
-  for(const r of entry.selected)group.selected.push({start:run.start+r.start,end:run.start+r.end});
+  if(!group){group={...readSource(element),element,entries:[]};groups.set(element,group);}
+  group.entries.push(entry);
  }
- for(const g of groups.values()){
+ // Incremental reviews can use neighboring paragraphs without reanalyzing them.
+ const readAdjacentSource=includeAdjacentSourceContext?element=>({
+  before:readSource(element.previousElementSibling).text.slice(-900),
+  after:readSource(element.nextElementSibling).text.slice(0,900)
+ }):null;
+ return createParagraphPlanFromSources([...groups.values()],{readAdjacentSource,preserveInlineHanja});
+}
+
+// EPUB supplies ordered, disjoint source runs from its static XHTML traversal.
+export function createParagraphPlanFromSources(sources,{readAdjacentSource,preserveInlineHanja=false}={}){
+ const byId=new Map(),sentences=[];
+ for(const [sourceIndex,source] of sources.entries()){
+  const g={id:'p'+sourceIndex,text:source.text,members:[],selected:[],results:new Map()};
+  const runByNode=new Map(source.runs.map(run=>[run.node,run]));
+  for(const entry of source.entries){
+   const run=runByNode.get(entry.node);
+   if(!run||g.text.slice(run.start,run.end)!==entry.text)throw Error('段落原文与 DOM 位置不一致，已停止分析。');
+   g.members.push({entry,start:run.start,end:run.end});
+   for(const r of entry.selected)g.selected.push({start:run.start+r.start,end:run.start+r.end});
+  }
   const merged=[];
   for(const r of g.selected.sort((a,b)=>a.start-b.start)){const last=merged.at(-1);if(last&&r.start<=last.end)last.end=Math.max(last.end,r.end);else merged.push({...r});}g.selected=merged;
-  // Incremental reviews must still understand old neighboring paragraphs
-  // without sending those paragraphs back into dictionary/model analysis.
-  const neighboring=includeAdjacentSourceContext?{
-   before:readSource(g.element.previousElementSibling).text.slice(-900),
-   after:readSource(g.element.nextElementSibling).text.slice(0,900)
-  }:null;
+  const neighboring=readAdjacentSource?.(source.element);
   // Keep ordinary paragraphs intact. Only oversized paragraphs need chunks;
   // prefer sentence endings, horizontal spaces, then newlines, without loss.
   let index=0;
@@ -50,7 +61,7 @@ export function createParagraphPlan(entries,readSource,blockSelector,{includeAdj
  }
  return {
   sentences,
-  context:[...groups.values()].map(g=>g.text).join('\n'),
+  context:sources.map(source=>source.text).join('\n'),
   projectResult(item,{source='local',provisional=false}={}){
    const chunk=byId.get(item.id);if(!chunk)throw Error('未知段落结果。');const g=chunk.group;
    // Discard invalid review spans before projection. Model KEEP/null may

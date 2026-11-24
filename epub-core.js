@@ -1,12 +1,17 @@
 // EPUB transport and DOM projection only. All linguistic decisions come from
 // the v1.2.2 web annotator's existing runSentencePipeline implementation.
 import {unzipSync,zipSync,strFromU8,strToU8} from './epub-fflate.js';
-import {createParagraphPlan} from './paragraph-plan.js';
+import {createParagraphPlanFromSources} from './paragraph-plan.js';
 import {normalizeAnnotationAppearance} from './annotation-appearance.js';
 
 const XHTML='http://www.w3.org/1999/xhtml';
-const BLOCKS='p,li,dt,dd,td,th,h1,h2,h3,h4,h5,h6,blockquote,pre,figcaption';
-const SKIP=new Set(['script','style','noscript','svg','math','rt','rp','nav']);
+const BLOCKS=new Set([
+ 'address','article','aside','blockquote','br','dd','details','div','dl','dt','fieldset',
+ 'figcaption','figure','footer','form','h1','h2','h3','h4','h5','h6','header','hgroup','hr',
+ 'li','main','nav','ol','p','pre','section','summary','table','caption','thead','tbody','tfoot',
+ 'tr','td','th','ul'
+]);
+const SKIP=new Set(['script','style','noscript','svg','math','ruby','rt','rp','nav']);
 const HANGUL=/[가-힣]/u;
 const utf8=new TextDecoder('utf-8',{fatal:true});
 
@@ -38,36 +43,44 @@ function parseXML(xml,label){
 function descendants(element,name){return [...(element?.getElementsByTagNameNS('*',name)||[])];}
 function first(element,name){return descendants(element,name)[0]||null;}
 function children(element,name){return [...(element?.childNodes||[])].filter(n=>n.nodeType===1&&n.localName===name);}
-function skipNode(node){
- for(let el=node.parentElement;el;el=el.parentElement){
-  if(SKIP.has(el.localName?.toLowerCase())||el.localName?.toLowerCase()==='ruby')return true;
- }
- return false;
-}
-function readSource(element){
- if(!element)return {text:'',runs:[]};
- let text='';const runs=[];
- function visit(node){
-  if(node.nodeType===3){
-   runs.push({node,start:text.length,end:text.length+node.data.length});
-   text+=node.data;return;
-  }
-  if(node.nodeType!==1||SKIP.has(node.localName?.toLowerCase())||
-     node.localName?.toLowerCase()==='ruby')return;
-  for(const child of node.childNodes)visit(child);
- }
- visit(element);return {text,runs};
-}
-function annotateNodes(doc){
+function readSource(doc){
  const body=first(doc,'body');if(!body)throw Error('XHTML 文件没有 body');
- const entries=new Map(),walker=doc.createTreeWalker(body,NodeFilter.SHOW_TEXT);
- for(let node=walker.nextNode();node;node=walker.nextNode()){
-  if(!HANGUL.test(node.data)||skipNode(node))continue;
-  const id=String(entries.size);
-  entries.set(node,{node,id,text:node.data,selected:[{start:0,end:node.data.length}],
-   annotations:[],localAnnotations:[],modelAnnotations:[],modelReviewed:[]});
+ const entries=new Map(),sources=[];
+ let source={text:'',runs:[],entries:[]};
+ function finishSource(){
+  if(source.entries.length)sources.push(source);
+  source={text:'',runs:[],entries:[]};
  }
- return entries;
+ function addText(node){
+  const text=node.data,start=source.text.length;
+  source.text+=text;
+  if(!HANGUL.test(text))return;
+  const id=String(entries.size);
+  const entry={node,id,text,selected:[{start:0,end:text.length}],
+   annotations:[],localAnnotations:[],modelAnnotations:[],modelReviewed:[]};
+  entries.set(node,entry);
+  source.runs.push({node,start,end:source.text.length});
+  source.entries.push(entry);
+ }
+ // Visit static markup in document order. Flush on each side of a block so
+ // text after a nested paragraph starts a new unit, even in the same parent.
+ const stack=[{next:body.firstChild,boundary:true}];
+ while(stack.length){
+  const frame=stack.at(-1),node=frame.next;
+  if(!node){
+   if(stack.pop().boundary)finishSource();
+   continue;
+  }
+  frame.next=node.nextSibling;
+  if(node.nodeType===3){addText(node);continue;}
+  if(node.nodeType!==1)continue;
+  const tag=node.localName.toLowerCase();
+  // Existing ruby is protected and must not join the words on either side.
+  const boundary=BLOCKS.has(tag)||tag==='ruby';
+  if(boundary)finishSource();
+  if(!SKIP.has(tag))stack.push({next:node.firstChild,boundary});
+ }
+ return {entries,sources};
 }
 function pickSpine(files){
  const container=files['META-INF/container.xml'];
@@ -79,9 +92,8 @@ function pickSpine(files){
  const manifest=first(packageDoc,'manifest'),spine=first(packageDoc,'spine');
  if(!manifest||!spine)throw Error('EPUB 缺少 manifest/spine');
  const items=new Map(children(manifest,'item').map(e=>[e.getAttribute('id'),e]));
- const filesOrdered=[];
+ const filesOrdered=new Set();
  for(const itemref of children(spine,'itemref')){
-  if(itemref.getAttribute('linear')==='no')continue;
   const entry=items.get(itemref.getAttribute('idref'));
   if(!entry)throw Error('EPUB spine 引用了不存在的条目');
   const type=entry.getAttribute('media-type');
@@ -89,9 +101,9 @@ function pickSpine(files){
   if((entry.getAttribute('properties')||'').split(/\s+/u).includes('nav'))continue;
   const path=resolvePath(opfPath,entry.getAttribute('href'));
   if(!files[path])throw Error('EPUB 正文章节丢失：'+path);
-  filesOrdered.push(path);
+  filesOrdered.add(path);
  }
- if(!filesOrdered.length)throw Error('EPUB 阅读顺序中没有可解析的 XHTML 正文');
+ if(!filesOrdered.size)throw Error('EPUB 阅读顺序中没有可解析的 XHTML 正文');
  return filesOrdered;
 }
 function cleanFilename(filename){
@@ -116,8 +128,8 @@ export function openEpub(buffer,filename='book.epub'){
  const paths=pickSpine(files),chapters=[],sentences=[],bySentence=new Map();
  let chapterIndex=0,totalChars=0;
  for(const path of paths){
-  const doc=parseXML(decode(files[path],path),path),entries=annotateNodes(doc);
-  const plan=createParagraphPlan(entries,readSource,BLOCKS,{preserveInlineHanja:true});
+  const doc=parseXML(decode(files[path],path),path),{entries,sources}=readSource(doc);
+  const plan=createParagraphPlanFromSources(sources,{preserveInlineHanja:true});
   const chapter={path,doc,entries,entryById:new Map([...entries.values()].map(e=>[e.id,e])),plan,index:chapterIndex++};
   chapters.push(chapter);
   for(const sentence of plan.sentences){
