@@ -16,7 +16,7 @@
 
 ## 安装
 
-1. 在 [Releases](https://github.com/aetherion-nox/korean-epub-annotator/releases/latest) 下载 `Korean-EPUB-Annotator-v1.0.2.zip` 并解压。
+1. 在 [Releases](https://github.com/aetherion-nox/korean-epub-annotator/releases/latest) 下载 `Korean-EPUB-Annotator-v1.0.3.zip` 并解压。
 2. 在 Chrome 打开 `chrome://extensions`，启用**开发者模式**。
 3. 点击**加载已解压的扩展程序**，选择含有 `manifest.json` 的文件夹。
 4. 点击扩展图标打开标注页面。
