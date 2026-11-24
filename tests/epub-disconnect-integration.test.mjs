@@ -56,6 +56,7 @@ class Port{
   this.sent.push(msg);
   if(msg.type==='START'){
    this.operationId=msg.operationId;
+   if(this.scenario.streamPreview)return;
    const prompt=requested(this.scenario.batchId,msg.sentences[0].id);
    this.emit({type:'MANUAL_REVIEW_REQUEST',...prompt});
    if(this.scenario.crashWhileWaiting){
@@ -158,4 +159,23 @@ test('EPUB page has downloadable manual TXT and file import controls plus keepal
  assert.match(source,/postMessage\(\{type:'KEEPALIVE'/);
  assert.match(source,/RecoverableEngineDisconnect/);
  assert.match(source,/await new Promise\(resolve=>\{resumeResolver=resolve;\}\)/);
+});
+
+test('EPUB displays incoming review progress without adding previews to its ZIP',async()=>{
+ ports=[];
+ const b=book(),sentence=b.sentences[0];
+ nextScenario=[{streamPreview:true}];
+ const running=runChunk(b.sentences,sentence.text,b,0,{hanja:true,loanword:true},true);
+ await until(()=>ports[0]?.operationId);
+ const annotation={start:0,end:2,surface:'원잠',replacement:'原潛',type:'hanja'};
+ const result={id:sentence.id,annotations:[annotation],reviewed:[annotation]};
+ ports[0].emit({type:'RESULTS',source:'model',provisional:true,results:[{...result,previewTargets:1}]});
+ await until(()=>!el('streamPreview').hidden);
+ assert.match(el('streamPreview').textContent,/1 个通过初步校验/);
+ assert.equal(exportEpub(b).conversions,0);
+ ports[0].emit({type:'RESULTS',source:'model',provisional:false,results:[result]});
+ ports[0].emit({type:'DONE',reviewIncomplete:false,unansweredTargets:0});
+ await running;
+ assert.equal(el('streamPreview').hidden,true);
+ assert.equal(exportEpub(b).conversions,1);
 });

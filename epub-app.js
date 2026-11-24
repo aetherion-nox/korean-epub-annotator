@@ -9,6 +9,16 @@ let plannedByChunk=[],totalPlannedReviewRequests=0;
 let effectiveApiConcurrency=1,apiReviewActive=false;
 let completedInitialRequests=new Set(),runningInitialRequests=new Set();
 const livePorts=new Map();
+const streamPreviewCounts=new Map();
+function updateStreamPreview(portId,count){
+ if((streamPreviewCounts.get(portId)||0)===count)return;
+ if(count)streamPreviewCounts.set(portId,count);
+ else streamPreviewCounts.delete(portId);
+ const total=[...streamPreviewCounts.values()].reduce((sum,n)=>sum+n,0);
+ const status=el('streamPreview');
+ status.hidden=!total;
+ status.textContent=total?'流式审核：已收到 '+total+' 个通过初步校验的答案，等待本次响应确认。':'';
+}
 const saneConcurrency=(value,limit=10000)=>{
  const n=Number(value);
  return Number.isSafeInteger(n)&&n>0?Math.min(n,Math.max(1,limit)):1;
@@ -309,6 +319,7 @@ init().catch(error=>progress(0,'设置初始化失败',error.message,true));
 function runChunkAttempt(sentences,context,book,index,modes,progressive,recovery,planOnly=false,deferReview=false,onPlanReady=null,reviewGate=null,sessionHanjaSeed=[],bookRunId=null,apiConcurrency=1,onReviewPaused=null){
  return new Promise((resolve,reject)=>{
   let finished=false,heartbeat=null;
+  const previewTargetsBySentence=new Map();
   const portOperationId=crypto.randomUUID();
   if(!deferReview)operationId=portOperationId;
   if(!deferReview)manualRequest=null;
@@ -320,6 +331,7 @@ function runChunkAttempt(sentences,context,book,index,modes,progressive,recovery
    finished=true;
    if(heartbeat!==null)clearInterval(heartbeat);
    livePorts.delete(portOperationId);
+   updateStreamPreview(portOperationId,0);
    if(currentPort===port){
     currentPort=null;manualRequest=null;
     el('submitAnswer').disabled=false;
@@ -465,6 +477,15 @@ function runChunkAttempt(sentences,context,book,index,modes,progressive,recovery
     return;
    }
    if(event.type==='RESULTS'){
+    if(event.source==='model'){
+     for(const item of event.results||[]){
+      if(event.provisional===true&&item.previewTargets>0)
+       previewTargetsBySentence.set(item.id,item.previewTargets);
+      else previewTargetsBySentence.delete(item.id);
+     }
+     if(event.provisional===true||streamPreviewCounts.has(portOperationId))
+      updateStreamPreview(portOperationId,[...previewTargetsBySentence.values()].reduce((sum,n)=>sum+n,0));
+    }
     try{ingestPipelineResult(book,event);}
     catch(error){finish(new Error('EPUB 结果映射出错：'+error.message));}
     return;

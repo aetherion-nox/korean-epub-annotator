@@ -65,3 +65,60 @@ test('discard-invalid strategy does not accidentally start strict continuation',
  assert.equal(calls,1);
  assert.equal(result.model_unanswered,0);
 });
+
+test('EPUB pooled API retry streams previews after a first-pass timeout, then checkpoints final answers', {timeout:8000}, async()=>{
+ const events=[],requests=[];
+ const retryStarted=Promise.withResolvers(),previewReady=Promise.withResolvers();
+ const abort=new AbortController(),oldFetch=globalThis.fetch;
+ const encoder=new TextEncoder();
+ let stream;
+ const send=(content,finish_reason=null)=>stream.enqueue(encoder.encode(
+  'data: '+JSON.stringify({choices:[{index:0,delta:{content},finish_reason}]})+'\n\n'
+ ));
+ globalThis.fetch=async(_,request)=>{
+  const body=JSON.parse(request.body);
+  assert.equal(body.stream,true);
+  const payload=JSON.parse(body.messages[1].content);
+  requests.push(payload.targets.length);
+  if(requests.length===1)throw new DOMException('fixture timeout','TimeoutError');
+  assert.equal(requests.length,2);
+  const rows=payload.targets.map(t=>JSON.stringify({t:t.target_id,c:t.options[0]}));
+  return new Response(new ReadableStream({start(controller){
+   stream=controller;
+   send('{"results":['+rows[0]);
+   retryStarted.resolve(rows.slice(1));
+  }}),{headers:{'content-type':'text/event-stream'}});
+ };
+ const running=runSentencePipeline({...base,smartSegmentation:false,progressiveAnnotation:true},event=>{
+  events.push(event);
+  if(event.type==='RESULTS'&&event.provisional)previewReady.resolve(event.results[0]);
+ },{
+  signal:abort.signal,status:async()=>identity,analyze,enabled:true,waitForReviewStart:async()=>{},
+  modelConfig:async()=>({provider:'hunyuan',model:'fixture',endpoint:'https://fixture.test/v1/chat/completions',
+   batchContextTier:'32k',reviewPosFilter:false,logger:{start:async()=>null,finish:async()=>{}}})
+ });
+ try{
+  const remaining=await Promise.race([retryStarted.promise,running.then(()=>assert.fail('retry did not start'))]);
+  const preview=await Promise.race([
+   previewReady.promise,
+   new Promise(resolve=>setImmediate(resolve)).then(()=>assert.fail('no preview during pooled retry'))
+  ]);
+  assert.deepEqual(requests,[3,3]);
+  assert.equal(preview.previewTargets,1);
+  assert.equal(preview.annotations[0].replacement,'經濟');
+  assert.ok(!events.some(e=>e.diagnostic?.message.includes('下一次缩小')));
+  assert.ok(!events.some(e=>e.type==='EPUB_REVIEW_CHECKPOINT'));
+  send(','+remaining.join(',')+']}', 'stop');
+  stream.enqueue(encoder.encode('data: [DONE]\n\n'));
+  stream.close();
+  stream=null;
+  const stats=await running;
+  assert.equal(stats.model_unanswered,0);
+  assert.equal(events.filter(e=>e.type==='EPUB_REVIEW_CHECKPOINT').flatMap(e=>e.rows).length,3);
+ }finally{
+  abort.abort();
+  stream?.close();
+  await running.catch(()=>{});
+  globalThis.fetch=oldFetch;
+ }
+});
