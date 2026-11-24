@@ -192,3 +192,10 @@ test('EPUB 20K splits never divide the Hangul and the parentheses that establish
  assert.equal(extractInlineHanjaPairs(parts[0].text).length,1);
  assert.ok(book.sentences.every(r=>r.text.length<=20000));
 });
+
+test('EPUB exports configured ruby size and opacity without changing original styles',()=>{
+ const book=openEpub(fixture());add(book,'학교','학교','學校');
+ const out=unzipSync(exportEpub(book,{size:65,opacity:40}).bytes);
+ assert.match(strFromU8(out['OEBPS/Text/a.xhtml']),/font-size: 65%; color: inherit; opacity: 0\.4/);
+ assert.deepEqual(out['OEBPS/Styles/book.css'],original['OEBPS/Styles/book.css']);
+});

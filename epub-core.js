@@ -2,6 +2,7 @@
 // the v1.2.2 web annotator's existing runSentencePipeline implementation.
 import {unzipSync,zipSync,strFromU8,strToU8} from './epub-fflate.js';
 import {createParagraphPlan} from './paragraph-plan.js';
+import {normalizeAnnotationAppearance} from './annotation-appearance.js';
 
 const XHTML='http://www.w3.org/1999/xhtml';
 const BLOCKS='p,li,dt,dd,td,th,h1,h2,h3,h4,h5,h6,blockquote,pre,figcaption';
@@ -162,7 +163,7 @@ export function ingestPipelineResult(book,event){
  }
  return updates;
 }
-function rubyNode(doc,a){
+function rubyNode(doc,a,appearance){
  const ruby=doc.createElementNS(XHTML,'ruby');
  ruby.setAttribute('class','kra-ruby');
  ruby.setAttribute('data-kra-type',a.type);
@@ -173,11 +174,11 @@ function rubyNode(doc,a){
  if(!reading)return null;
  ruby.appendChild(doc.createTextNode(base));
  const rt=doc.createElementNS(XHTML,'rt');
- rt.setAttribute('style','font-size: 0.6em');
+ rt.setAttribute('style',`font-size: ${appearance.size}%; color: inherit; opacity: ${appearance.opacity/100}`);
  rt.appendChild(doc.createTextNode(reading));
  ruby.appendChild(rt);return ruby;
 }
-function paintEntry(entry){
+function paintEntry(entry,appearance){
  const node=entry.node;
  if(!node.parentNode||node.data!==entry.text)return 0;
  const valid=[...entry.annotations].sort((a,b)=>a.start-b.start);
@@ -187,7 +188,7 @@ function paintEntry(entry){
   if(!['hanja','loanword'].includes(a.type)||!Number.isInteger(a.start)||
      !Number.isInteger(a.end)||a.start<cursor||a.end<=a.start||a.end>entry.text.length||
      entry.text.slice(a.start,a.end)!==a.surface||!a.replacement)continue;
-  const ruby=rubyNode(node.ownerDocument,a);if(!ruby)continue;
+  const ruby=rubyNode(node.ownerDocument,a,appearance);if(!ruby)continue;
   if(a.start>cursor)fragment.appendChild(node.ownerDocument.createTextNode(entry.text.slice(cursor,a.start)));
   fragment.appendChild(ruby);cursor=a.end;count++;
  }
@@ -195,11 +196,12 @@ function paintEntry(entry){
  if(cursor<entry.text.length)fragment.appendChild(node.ownerDocument.createTextNode(entry.text.slice(cursor)));
  node.parentNode.replaceChild(fragment,node);return count;
 }
-export function exportEpub(book){
+export function exportEpub(book,settings){
+ const appearance=normalizeAnnotationAppearance(settings);
  let conversions=0;
  for(const chapter of book.chapters){
   let changes=0;
-  for(const entry of chapter.entries.values())changes+=paintEntry(entry);
+  for(const entry of chapter.entries.values())changes+=paintEntry(entry,appearance);
   if(changes){
    book.files[chapter.path]=strToU8(new XMLSerializer().serializeToString(chapter.doc));
    conversions+=changes;

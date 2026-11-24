@@ -72,7 +72,7 @@ export function buildManualPrompt(context,targets,batchId,config={}){
     'A genuine enabled Hanja source spelling is an origin string, never a keep instruction.':
     'A genuine enabled Latin source spelling is an origin string, never a keep instruction.']:[]),
   config.smartSegmentation===true?
-   'Return results for targets not superseded by validated repairs; omit those retired by a valid repair and scan_only placeholders. A failed repair does NOT retire the original target. Repair objects use their separately specified field names.':
+   'Decide repairs before writing the response. Output the top-level results array first, then the repairs array. Return results for targets not superseded by validated repairs; omit those retired by a valid repair and scan_only placeholders. A failed repair does NOT retire the original target. Repair objects use their separately specified field names.':
    'Return exactly one t/c result for each target; no duplicates or invented IDs.',
   'Do not copy source format, sentences, candidates, targets or context into the answer. Include batch_id whenever possible; a stated mismatching batch_id is always rejected.',
   ''

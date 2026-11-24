@@ -82,9 +82,20 @@
      </label>
     </div>
     <p id="epubApiConcurrencyHint" class="api-concurrency-hint">默认同时请求 1 批。实际并发不会超过本次 EPUB 的首轮计划请求总数。</p>
+    <fieldset class="epub-appearance">
+     <legend>标注样式</legend>
+     <label for="annotationSize">标注大小（相对正文） <output id="annotationSizeValue">75%</output></label>
+     <input id="annotationSize" type="range" min="25" max="150" step="1" value="75">
+     <label for="annotationOpacity">标注深浅（不透明度） <output id="annotationOpacityValue">100%</output></label>
+     <input id="annotationOpacity" type="range" min="0" max="100" step="1" value="100">
+     <div id="annotationAppearancePreview" class="epub-appearance-preview"><ruby>韓國<rt>한국</rt></ruby>의 <ruby>文化<rt>문화</rt></ruby>와 <ruby>커피<rt>coffee</rt></ruby></div>
+     <button type="button" id="resetAnnotationAppearance">恢复默认</button>
+     <small id="annotationAppearanceStatus" role="status">应用于之后生成的 EPUB，不影响正文。</small>
+    </fieldset>
     <iframe id="optionsFrame" title="网页标注器共用的引擎、词典与 API 设置" loading="lazy" src="options.html"></iframe>
   </section>
  </main>
  <script type="module" src="epub-app.js"></script>
+ <script type="module" src="epub-appearance-settings.js"></script>
 </body>
 </html>

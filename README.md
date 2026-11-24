@@ -16,7 +16,7 @@
 
 ## 安装
 
-1. 在 [Releases](https://github.com/aetherion-nox/korean-epub-annotator/releases/latest) 下载 `Korean-EPUB-Annotator-v1.0.0.zip` 并解压。
+1. 在 [Releases](https://github.com/aetherion-nox/korean-epub-annotator/releases/latest) 下载 `Korean-EPUB-Annotator-v1.0.2.zip` 并解压。
 2. 在 Chrome 打开 `chrome://extensions`，启用**开发者模式**。
 3. 点击**加载已解压的扩展程序**，选择含有 `manifest.json` 的文件夹。
 4. 点击扩展图标打开标注页面。
@@ -42,3 +42,7 @@
 需要 Python 3 和 Node.js。运行 `python3 restore_distribution.py` 恢复浏览器运行时，执行 `npm install` 和 `npm run prepare:epub` 后，可在浏览器加载源码文件夹。恢复脚本会校验运行时包的 SHA-256，并保留本项目自带的分析引擎源码。
 
 [下载安装包](https://github.com/aetherion-nox/korean-epub-annotator/releases) · [第三方声明](THIRD_PARTY_NOTICES.md)
+
+### 标注样式
+
+在 EPUB 设置页调整标注字号（默认正文的 75%）与不透明度（默认 100%），预览效果并保存。设置应用于之后生成的 EPUB，不修改正文样式。

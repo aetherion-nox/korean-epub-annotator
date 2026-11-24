@@ -916,7 +916,8 @@ async function handleFile(file){
   continuationResolver=null;
   apiReviewActive=false;
   progress(93,'生成 EPUB','正在写入 XHTML 标注并重新封装书籍…');
-  const exported=exportEpub(book);
+  const appearance=await chrome.storage.local.get('annotationAppearance');
+  const exported=exportEpub(book,appearance.annotationAppearance);
   download=exported;
   progress(100,'标注完成','完成 '+exported.conversions+' 处标注；已自动下载 '+exported.filename);
   updateRequestPlan('首轮审核计划 '+totalPlannedReviewRequests+' 批 · 全书已完成。');

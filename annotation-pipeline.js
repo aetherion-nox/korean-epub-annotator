@@ -527,14 +527,14 @@ export async function runSentencePipeline(message,post,{signal,analyze=analyzeLo
   const reviewConfig={...config,rejectedChoiceHistory,
    epubInitialReview:message.epubBookSession===true&&!resuming&&config.manualReview!==true,
    repairScopes,manualBindings,manualPrepared,batchNumber:batchIndex+1,batchTotal:batches.length,batchBudget:batch.budget,operationId:message.operationId,stream:progressive?true:config.stream,timeoutMs:config.timeoutMs||600000,enableModelReview:true,context:batch.context,
-   ...(progressive&&!smartSegmentation?{onPreview:accepted=>{
+   ...(progressive&&!config.manualReview?{onPreview:accepted=>{
     // Group stream previews by paragraph, not by individual SSE token. The
     // model's 800+ answers in a 7K-character article should not regenerate
     // a multi-hundred-ruby DOM tree 800 times.
     const perItem=new Map();
     for(const a of accepted){
      const owner=owners.get(a.target.target_id);
-     if(!owner)continue;
+     if(!owner||owner.target.scan_only)continue;
      const rows=perItem.get(owner.item)||[];
      rows.push({target:owner.target,option:a.option});
      perItem.set(owner.item,rows);
@@ -574,7 +574,7 @@ export async function runSentencePipeline(message,post,{signal,analyze=analyzeLo
    onRejectedChoice:(key,record)=>{
     if(message.epubBookSession===true)emit('EPUB_REJECTED_CHECKPOINT',{key,record});
    },
-   onAccepted:async accepted=>{
+   onAccepted:async (accepted,{interrupted=false}={})=>{
     if(message.epubBookSession===true&&accepted.length){
      const rows=accepted.map(a=>{
       const owner=owners.get(a.target.target_id);
@@ -611,7 +611,7 @@ export async function runSentencePipeline(message,post,{signal,analyze=analyzeLo
     // Non-progressive mode still checkpoints completed model batches in the
     // page and MV3 session journal, but does NOT paint until DONE (or an
     // unexpected disconnect). Streaming mode also keeps its incremental UI.
-    if(!config.manualReview&&(!smartSegmentation||config.retryInvalidDictionaryChoices!==false||config.discardInvalidReviewResults===true))
+    if(!config.manualReview&&(!smartSegmentation||interrupted))
      return Promise.all(batch.items.map(item=>publishModel(item)));
    },
    ...(smartSegmentation?{onRepairRejected:count=>{stats.repair_rejected+=count;},onRepairOffsetCorrected:count=>{stats.repair_offset_corrected+=count;},onRepairs:repairs=>{

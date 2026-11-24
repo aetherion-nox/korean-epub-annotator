@@ -48,3 +48,11 @@
 .review-continuation-actions label{display:flex;flex-direction:column;flex:1;gap:5px;min-width:190px;font-size:12px;font-weight:650}
 .review-continuation-actions select{font:inherit;border:1px solid var(--border);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px}
 .review-continuation-actions button{padding:11px 20px;min-height:40px}
+
+.epub-appearance {margin:14px 0;padding:14px;border:1px solid #c9ccd1;border-radius:10px;}
+.epub-appearance label {display:block;margin:6px 0;}
+.epub-appearance output {float:right;}
+.epub-appearance input[type=range] {display:block;width:100%;}
+.epub-appearance-preview {text-align:center;font-size:22px;padding:12px;line-height:1.6;}
+.epub-appearance-preview rt {font-size:var(--kra-annotation-size,75%);opacity:var(--kra-annotation-opacity,1);color:inherit;}
+#annotationAppearanceStatus {display:block;margin-top:8px;}

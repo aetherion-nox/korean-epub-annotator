@@ -362,7 +362,7 @@ export async function reviewTargets(config,targets,signal){
     if(committed.length){
      accepted.push(...committed);
      pending=pending.filter(t=>!seen.has(t.target_id));
-     await config.onAccepted?.(committed);
+     await config.onAccepted?.(committed,{interrupted:true});
      notify({stage:'partial',level:'warning',message:`API 流中断：已安全保留 ${committed.length} 条完整有效答案；其余 ${pending.length} 条仍待重试。`});
     }
    }
@@ -425,7 +425,7 @@ async function requestChoices(config,targets,signal){
  }else{
   body.max_tokens=outputTokenLimit;
  }
- if(config.stream===true){body.stream=true;if(['qwen','deepseek'].includes(provider))body.stream_options={include_usage:true};}
+ if(config.stream===true){body.stream=true;if(['qwen','deepseek','hunyuan'].includes(provider))body.stream_options={include_usage:true};}
  const auth=provider==='anthropic'?{'x-api-key':config.apiKey||'','anthropic-version':'2023-06-01'}:config.apiKey?(provider==='mimo'?{'api-key':config.apiKey}:{Authorization:`Bearer ${config.apiKey}`}):{};
  const logger=config.logger||requestLogger;
  const started=Date.now(),secrets=[config.apiKey,config.engineToken].filter(Boolean);
@@ -459,7 +459,10 @@ async function requestChoices(config,targets,signal){
   try{({response:result,recovered}=parsePartialReviewJson(content));}
   catch{if(config.discardInvalidReviewResults===true){result={results:[]};config.onDiagnostic?.({stage:'discard-invalid',level:'warning',message:'模型回复无法解析，已丢弃本次无效答案，不重新请求。'});}
     else{const error=Error('模型最终回复为空、非 JSON 或不符合候选 ID 协议');error.detail=content||raw;throw error;}}
-  if(recovered)config.onDiagnostic?.({stage:'partial-json',level:'warning',message:config.discardInvalidReviewResults===true?`模型 JSON 存在语法错误，已安全提取 ${result.results.length} 条有效对象，其他错误对象直接丢弃。`:`模型 JSON 存在语法错误，已安全提取 ${result.results.length} 条独立完整的 t/c 答案；其他目标将单独补交。`});
+  if(recovered&&config.smartSegmentation===true){
+    const error=Error('智能分词回复 JSON 不完整；保留已校验的流式普通答案，其他目标等待补交');error.detail=content;throw error;
+   }
+   if(recovered)config.onDiagnostic?.({stage:'partial-json',level:'warning',message:config.discardInvalidReviewResults===true?`模型 JSON 存在语法错误，已安全提取 ${result.results.length} 条有效对象，其他错误对象直接丢弃。`:`模型 JSON 存在语法错误，已安全提取 ${result.results.length} 条独立完整的 t/c 答案；其他目标将单独补交。`});
   const internal=normalizePooledChoiceAnswers(result,choiceIndex);
   const checked=(config.experimentalHanja||config.experimentalLoanword)?
     validateExperimentalChoices(choiceValidationTargets,internal,config):
@@ -470,7 +473,7 @@ async function requestChoices(config,targets,signal){
   // Only completed and validated stream rows can be salvaged. Request-level
   // failure still remains visible in diagnostics and logs; this is not
   // interpreted as a successful full model reply.
-  if(latestPreview.length)error.partialAccepted=latestPreview;
+  if(latestPreview.length&&!error.discardPartial)error.partialAccepted=latestPreview;
   await logger.finish(logId,{status,responseHeaders,finishedAt:new Date().toISOString(),elapsedMs:Date.now()-started,firstByteMs,response:{raw,truncated:rawTruncated,...metadata},error:{name:error.name,message:error.message,detail:error.detail||''},partialRows:latestPreview.length},secrets);
   throw error;
  }finally{
