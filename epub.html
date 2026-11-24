@@ -12,6 +12,7 @@
    <div><p class="eyebrow">KOREAN EPUB ANNOTATOR</p><h1>韩语 EPUB 标注器</h1></div>
    <nav role="tablist" class="tabs" aria-label="插件页面">
     <button id="annotateTab" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="annotatePanel">标注</button>
+    <button id="historyTab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="historyPanel">历史记录</button>
     <button id="settingsTab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="settingsPanel">设置</button>
    </nav>
   </header>
@@ -72,6 +73,17 @@
     <p id="diagnosticSummary">尚无诊断记录</p>
     <ol id="diagnosticEntries"></ol>
    </section>
+  </section>
+
+  <section id="historyPanel" role="tabpanel" aria-labelledby="historyTab" hidden>
+   <form id="historyLimitForm" class="history-limit">
+    <label for="historyLimit">保留本数</label>
+    <input id="historyLimit" type="number" min="0" step="1" value="10" inputmode="numeric" required aria-describedby="historyLimitHint">
+    <button id="saveHistoryLimit" type="submit" disabled>保存</button>
+    <small id="historyLimitHint">保存在本机浏览器。超过上限时删除最早的记录，设为 0 会清空并停止保存。</small>
+   </form>
+   <p id="historyStatus" class="status" role="status"></p>
+   <ul id="historyBooks" class="history-books" aria-label="已标注的 EPUB"></ul>
   </section>
 
   <section id="settingsPanel" role="tabpanel" aria-labelledby="settingsTab" hidden>

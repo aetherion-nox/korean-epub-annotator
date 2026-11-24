@@ -56,3 +56,15 @@
 .epub-appearance-preview {text-align:center;font-size:22px;padding:12px;line-height:1.6;}
 .epub-appearance-preview rt {font-size:var(--kra-annotation-size,75%);opacity:var(--kra-annotation-opacity,1);color:inherit;}
 #annotationAppearanceStatus {display:block;margin-top:8px;}
+.history-limit{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:15px 17px;background:var(--soft);border:1px solid var(--border);border-radius:10px}
+.history-limit label{font-weight:650}
+.history-limit input{width:90px;padding:7px 9px;border:1px solid var(--border);border-radius:7px;background:var(--paper);color:var(--ink);font:inherit}
+.history-limit small{flex-basis:100%;color:var(--muted)}
+.history-limit button,.history-books button{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit;cursor:pointer}
+.history-limit button:disabled,.history-books button:disabled{opacity:.55;cursor:default}
+.history-books{margin:12px 0 0;padding:0;list-style:none}
+.history-books li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.history-books strong{overflow-wrap:anywhere}
+.history-books small{display:block;margin-top:3px;color:var(--muted)}
+.history-books button{flex-shrink:0}
+@media(max-width:370px){.tabs .tab{padding-inline:12px}}

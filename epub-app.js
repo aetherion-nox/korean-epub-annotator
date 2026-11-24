@@ -1,8 +1,9 @@
 import {openEpub,ingestPipelineResult,exportEpub,sentenceChunks} from './epub-core.js';
 import {manualRequestIdentity,sameManualTargets,transferManualAnswer} from './epub-recovery.js';
+import {getHistoryFile,listHistory,saveHistoryBook,setHistoryLimit} from './epub-history.js';
 
 const el=id=>document.getElementById(id);
-const tabs=[['annotateTab','annotatePanel'],['settingsTab','settingsPanel']];
+const tabs=[['annotateTab','annotatePanel'],['historyTab','historyPanel'],['settingsTab','settingsPanel']];
 let busy=false,download=null,currentPort=null,operationId=null,manualRequest=null;
 let totalChunks=0,doneChunks=0;
 let plannedByChunk=[],totalPlannedReviewRequests=0;
@@ -160,6 +161,7 @@ function setTab(name){
   el(tab).setAttribute('aria-selected',String(chosen));
   el(panel).hidden=!chosen;
  }
+ if(name==='historyTab')void refreshHistory({loadLimit:true});
 }
 for(const [tab] of tabs)el(tab).addEventListener('click',()=>setTab(tab));
 const phaseMessages={
@@ -178,14 +180,57 @@ function progress(pct,phase,status,error=false){
  el('status').classList.toggle('error',error);
 }
 function downloadBook(){
- if(!download)return;
- const blob=new Blob([download.bytes],{type:'application/epub+zip'});
+ if(download)downloadEpubFile(download.blob,download.filename);
+}
+function downloadEpubFile(blob,filename){
  const url=URL.createObjectURL(blob);
- const anchor=document.createElement('a');anchor.href=url;anchor.download=download.filename;
+ const anchor=document.createElement('a');anchor.href=url;anchor.download=filename;
  document.body.append(anchor);anchor.click();anchor.remove();
  revokeDownloadObjectUrlLater(url,60000);
 }
 el('downloadEpub').addEventListener('click',downloadBook);
+
+const historyDate=new Intl.DateTimeFormat('zh-CN',{dateStyle:'medium',timeStyle:'short'});
+async function refreshHistory({loadLimit=false}={}){
+ const status=el('historyStatus');
+ try{
+  const {limit,books}=await listHistory();
+  if(loadLimit)el('historyLimit').value=String(limit);
+  el('saveHistoryLimit').disabled=false;
+  el('historyBooks').replaceChildren(...books.map(({id,filename,finishedAt})=>{
+   const row=document.createElement('li'),label=document.createElement('div');
+   const name=document.createElement('strong'),date=document.createElement('small');
+   name.textContent=filename;date.textContent=historyDate.format(finishedAt);
+   label.append(name,date);
+   const button=document.createElement('button');
+   button.type='button';button.textContent='下载';button.setAttribute('aria-label','下载 '+filename);
+   button.addEventListener('click',async()=>{
+    button.disabled=true;
+    try{
+     const blob=await getHistoryFile(id);
+     if(blob)downloadEpubFile(blob,filename);
+     else await refreshHistory();
+    }catch(error){status.textContent='下载历史 EPUB 失败：'+error.message;}
+    finally{button.disabled=false;}
+   });
+   row.append(label,button);
+   return row;
+  }));
+  status.textContent=limit===0?'历史记录已关闭。':books.length?'':'还没有已标注的 EPUB。';
+ }catch(error){status.textContent='读取历史记录失败：'+error.message;}
+}
+
+el('historyLimitForm').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const button=el('saveHistoryLimit'),limit=el('historyLimit').valueAsNumber;
+ button.disabled=true;
+ try{
+  await setHistoryLimit(limit);
+  await refreshHistory();
+ }catch(error){el('historyStatus').textContent='保存保留本数失败：'+error.message;}
+ finally{button.disabled=false;}
+});
+
 el('toggleDiagnostics').addEventListener('click',()=>{
  const panel=el('epubDiagnostics');
  panel.hidden=!panel.hidden;
@@ -939,11 +984,18 @@ async function handleFile(file){
   progress(93,'生成 EPUB','正在写入 XHTML 标注并重新封装书籍…');
   const appearance=await chrome.storage.local.get('annotationAppearance');
   const exported=exportEpub(book,appearance.annotationAppearance);
-  download=exported;
+  download={filename:exported.filename,blob:new Blob([exported.bytes],{type:'application/epub+zip'})};
   progress(100,'标注完成','完成 '+exported.conversions+' 处标注；已自动下载 '+exported.filename);
   updateRequestPlan('首轮审核计划 '+totalPlannedReviewRequests+' 批 · 全书已完成。');
   el('downloadEpub').disabled=false;
   downloadBook();
+  try{
+   await saveHistoryBook(download);
+   if(!el('historyPanel').hidden)await refreshHistory();
+  }catch(error){
+   el('status').textContent+='。本次历史记录保存失败。';
+   addDiagnostic({stage:'history-save',level:'warning',message:String(error.message||error)});
+  }
  }catch(error){
   el('pauseManualReview').hidden=true;
   el('reviewContinuation').hidden=true;

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
+import {IDBFactory} from 'fake-indexeddb';
+import {listHistory} from '../epub-history.js';
 import {zipSync,strToU8} from '../epub-fflate.js';
 
 const {JSDOM}=createRequire(import.meta.url)('jsdom');
@@ -11,7 +13,11 @@ globalThis.document=dom.window.document;
 globalThis.DOMParser=dom.window.DOMParser;
 globalThis.XMLSerializer=dom.window.XMLSerializer;
 globalThis.NodeFilter=dom.window.NodeFilter;
-dom.window.HTMLAnchorElement.prototype.click=function(){};
+globalThis.indexedDB=new IDBFactory();
+const downloads=[];
+dom.window.HTMLAnchorElement.prototype.click=function(){
+ downloads.push({filename:this.download,url:this.href});
+};
 const el=id=>document.getElementById(id);
 
 const container='<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>';
@@ -103,6 +109,27 @@ test('book-wide two-chunk preflight completes without a duplicated local START a
  const start=ports.flatMap(p=>p.sent.filter(x=>x.type==='START'));
  assert.equal(start.reduce((n,x)=>n+x.sentences.length,0),181);
  assert.ok(start.every(x=>x.deferReview&&x.reviewAll===false));
+ const {books}=await listHistory();
+ assert.deepEqual(books.map(book=>book.filename),['two-chunk-annotated.epub']);
+ const waitFor=async condition=>{
+  for(let i=0;i<100;i++){
+   if(condition())return;
+   await new Promise(resolve=>setTimeout(resolve,5));
+  }
+  assert.fail('Timed out waiting for the history panel');
+ };
+ el('historyTab').click();
+ await waitFor(()=>el('historyBooks').childElementCount===1);
+ el('historyBooks').querySelector('button').click();
+ await waitFor(()=>downloads.length===2);
+ assert.equal(downloads[1].filename,downloads[0].filename);
+ assert.deepEqual(await (await fetch(downloads[1].url)).arrayBuffer(),
+  await (await fetch(downloads[0].url)).arrayBuffer());
+ el('historyLimit').value='0';
+ el('saveHistoryLimit').click();
+ await waitFor(()=>el('historyBooks').childElementCount===0);
+ assert.deepEqual(await listHistory(),{limit:0,books:[]});
+ el('annotateTab').click();
 });
 
 test('API mode diagnostics are collapsed by default, show batch events, and allow reopening',()=>{
