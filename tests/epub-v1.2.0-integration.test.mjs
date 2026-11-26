@@ -13,8 +13,8 @@ const target={target_id:'t0',surface:'경제',context:'경제',start:0,end:2,opt
 const config={retryInvalidDictionaryChoices:true,discardInvalidReviewResults:false,reviewPosFilter:false};
 
 test('EPUB extension ships the web 1.2.8 strict-review core without website injection',()=>{
- assert.equal(manifest.version,'1.0.3');
- assert.equal(pkg.version,manifest.version);
+ assert.equal(manifest.version,'1.0.4.1');
+ assert.equal(pkg.version,'1.0.4-beta.1');
  assert.equal(manifest.content_scripts,undefined);
  assert.equal(manifest.action.default_popup,undefined);
  assert.match(read('service-worker.js'),/1\.2\.8-epub-pos-independent-pools/);

@@ -65,10 +65,10 @@ test('EPUB cache fingerprint and review config use the same strict true test as 
  assert.doesNotMatch(source,/config\.hanjaReadingCheck!==false/);
 });
 
-test('stable manifest and package are both 1.0.3',()=>{
+test('preview versions use Chrome manifest and semver package formats',()=>{
  const manifest=JSON.parse(readFileSync(new URL('../manifest.json',import.meta.url)));
  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url)));
- assert.equal(manifest.version,'1.0.3');
- assert.equal(pkg.version,'1.0.3');
+ assert.equal(manifest.version,'1.0.4.1');
+ assert.equal(pkg.version,'1.0.4-beta.1');
  assert.equal(manifest.content_scripts,undefined);
 });
