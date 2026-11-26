@@ -106,11 +106,14 @@ export function experimentalChoicePreviewParser(targets,config,onPreview){
 
 export async function readModelContent(response,{protocol='chat',signal,onStarted=()=>{},onDelta=()=>{},onRaw=()=>{},onMetadata=()=>{},maxContentChars=2_000_000}={}){
  const contentCap=Number.isSafeInteger(maxContentChars)?Math.min(16_000_000,Math.max(2_000_000,maxContentChars)):2_000_000;
- if(!response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')){
+ const contentType=response.headers.get('content-type')?.toLowerCase() || '';
+ const ndjson=protocol==='ollama'&&contentType.includes('ndjson');
+ if(!ndjson&&!contentType.includes('text/event-stream')){
   const raw=await response.text();onRaw(raw);
   let data;try{data=JSON.parse(raw);}catch{throw streamError('模型响应不是有效 JSON',raw);}
   onMetadata(data);
   if(data.error)throw streamError('模型返回 API 错误',JSON.stringify(data.error));
+  if(protocol==='lmstudio')return (data.output||[]).filter(item=>item.type==='message').map(item=>item.content).join('');
   if(protocol==='responses'){
    if(data.status!=='completed')throw streamError('模型回复未正常结束',String(data.status));
    return (data.output||[]).filter(i=>i.type==='message').flatMap(i=>i.content||[]).filter(b=>b.type==='output_text').map(b=>b.text).join('');
@@ -118,6 +121,10 @@ export async function readModelContent(response,{protocol='chat',signal,onStarte
   if(protocol==='anthropic'){
    if(!['end_turn','stop_sequence'].includes(data.stop_reason))throw streamError('模型回复未正常结束',String(data.stop_reason));
    return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  }
+  if(protocol==='ollama'){
+   if(data.done!==true || ![undefined,'stop'].includes(data.done_reason))throw streamError('Ollama 回复未正常结束',String(data.done_reason));
+   return data.message?.content;
   }
   const choice=data.choices?.find(c=>c.index===0)||data.choices?.[0];
   if(choice?.finish_reason&&choice.finish_reason!=='stop')throw streamError('模型回复未正常结束，已保留原文',String(choice.finish_reason));
@@ -133,7 +140,13 @@ export async function readModelContent(response,{protocol='chat',signal,onStarte
   let event;try{event=JSON.parse(data);}catch{throw streamError('模型流式响应包含无效 JSON');}
   if(event.error||event.type==='error'){const error=streamError('模型返回流式 API 错误',JSON.stringify(event.error||event));error.discardPartial=true;throw error;}
   if(!started){started=true;onStarted();}
-  if(protocol==='responses'){
+  if(protocol==='lmstudio'){
+   if(event.type==='message.delta')append(event.content);
+   if(event.type==='chat.end')done=true;
+  }else if(protocol==='ollama'){
+   append(event.message?.content);
+   if(event.done){done=true;finish=event.done_reason||'stop';onMetadata(event);}
+  }else if(protocol==='responses'){
    if(event.type==='response.output_text.delta')append(event.delta);
    if(event.type==='response.completed'){finish=event.response?.status;onMetadata(event.response||event);done=true;}
    if(['response.failed','response.incomplete'].includes(event.type))throw streamError('模型回复未正常结束',JSON.stringify(event.response||event));
@@ -145,10 +158,10 @@ export async function readModelContent(response,{protocol='chat',signal,onStarte
    if(event.type==='message_stop')done=true;
   }else{
    const choice=event.choices?.find(c=>c.index===0)??(event.choices?.length===1&&event.choices[0]?.index==null?event.choices[0]:undefined);if(choice){append(choice.delta?.content);if(choice.finish_reason)finish=choice.finish_reason;}
-   if(event.usage||event.id)onMetadata(event);
+   if(event.usage||event.id||event.provider)onMetadata(event);
   }
  }
- function line(value){if(value===''){dispatch();return;}if(value.startsWith('data:'))lines.push(value.slice(5).replace(/^ /,''));}
+ function line(value){if(ndjson){if(value.trim()){lines=[value];dispatch();}return;}if(value===''){dispatch();return;}if(value.startsWith('data:'))lines.push(value.slice(5).replace(/^ /,''));}
  try{
   while(!done){
    signal?.throwIfAborted();const chunk=await reader.read();const raw=decoder.decode(chunk.value,{stream:!chunk.done});onRaw(raw);buffer+=raw;
@@ -156,7 +169,7 @@ export async function readModelContent(response,{protocol='chat',signal,onStarte
    if(buffer.length>2_000_000)throw streamError('模型流式数据包超出大小限制');
    if(chunk.done){if(buffer)line(buffer.replace(/\r$/,''));dispatch();break;}
   }
-  const valid=protocol==='responses'?finish==='completed':protocol==='anthropic'?done&&['end_turn','stop_sequence'].includes(finish):finish==='stop';
+  const valid=protocol==='lmstudio'?done:protocol==='responses'?finish==='completed':protocol==='anthropic'?done&&['end_turn','stop_sequence'].includes(finish):finish==='stop';
   if(!valid){
    const error=streamError('模型流式回复中断或未正常结束，已保留原文',String(finish||'missing finish_reason'));
    // Only truncation or a lost transport may salvage complete rows. Explicit
