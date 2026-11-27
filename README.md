@@ -16,7 +16,7 @@
 
 ## 安装
 
-1. 在 [Releases](https://github.com/aetherion-nox/korean-epub-annotator/releases/latest) 下载 `Korean-EPUB-Annotator-v1.0.5.zip` 并解压。
+1. 在 [Releases](https://github.com/aetherion-nox/korean-epub-annotator/releases/latest) 下载 `Korean-EPUB-Annotator-v1.0.6.zip` 并解压。
 2. 在 Chrome 打开 `chrome://extensions`，启用**开发者模式**。
 3. 点击**加载已解压的扩展程序**，选择含有 `manifest.json` 的文件夹。
 4. 点击扩展图标打开标注页面。
@@ -57,3 +57,7 @@
 
 - 同步网页标注器 1.1.15 的人名直填规则：已有审核目标可在身份和真实汉字写法可靠时直接填写，保留人名片段保护，不额外增加受保护姓名审核目标。
 - 标注页新增浏览器会话级及持久忽略缓存选项；新书开始时锁定设置，不影响当前审核继续、历史记录或 EPUB 原有结构。
+
+## 1.0.6
+
+同步网页 1.1.15 的段落审核缓存：API/手动及实验性词源、智能分词共享经过重新校验的结果；容量默认本地和模型各 1000，可配置。保留 EPUB 整书预分析、断线恢复和并发续审；文件按原文与邻段上下文匹配，不使用网页 URL 规则。

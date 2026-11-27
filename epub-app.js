@@ -3,6 +3,8 @@ import {manualRequestIdentity,sameManualTargets,transferManualAnswer} from './ep
 import {getHistoryFile,listHistory,saveHistoryBook,setHistoryLimit} from './epub-history.js';
 
 import {bindCacheBypassControls} from './cache-bypass-settings.js';
+import {bindCacheCapacity} from './cache-capacity-settings.js';
+bindCacheCapacity();
 const el=id=>document.getElementById(id);
 const cacheBypass=bindCacheBypassControls(document,chrome.storage,error=>console.warn('缓存设置读取/保存失败',error));
 let forceRegenerateForBook=false;

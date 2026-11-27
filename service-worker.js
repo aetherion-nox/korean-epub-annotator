@@ -12,7 +12,7 @@ import {engineConfig,engineStatus,analyzeLocal,analyzeLocalBatch} from './local-
 import {reviewTargets} from './choice-review.js';
 import {requestLogger} from './request-log.js';
 import {runSentencePipeline,CACHE_KEY} from './annotation-pipeline.js';
-import {prepareCacheSession} from './session-cache.js';
+import {prepareCacheSession,AnnotationCache,cacheCounts,canonicalStoredCacheKey,trimAnnotationCache,CACHE_LIMIT_SETTING,normalizeAnnotationCacheLimit} from './session-cache.js';
 import {createManualReviewSession} from './manual-review.js';
 import {dispatchChildFrameBatch} from './page-frame-dispatch.js';
 import {
@@ -35,9 +35,16 @@ function serializeHistory(tabId,callback){
  return next;
 }
 const STREAM_PORT_NAME='KRA_ANNOTATE_STREAM_V1';
-const cache=new Map();
+let cache=new AnnotationCache();
+let cacheStorageQueue=Promise.resolve();
+function serializeCacheStorage(work){
+ const next=cacheStorageQueue.catch(()=>{}).then(work);
+ cacheStorageQueue=next;return next;
+}
+
 let cacheLoaded=false;
 let cacheLoadPromise;
+let cacheLoadReport=null;
 const enginePreloader=createEnginePreloader();
 const preloadEngine=()=>enginePreloader.run().catch(error=>console.warn('[KRA preload]',error.message));
 // Also covers extension reload/enabling and browsers that resume the worker.
@@ -494,7 +501,7 @@ async function startPageFromPopup(message){
   const uiSettings=sanitizeUiSettings(message.uiSettings);
   const persist=chrome.storage.local.get('uiSettings').then(({uiSettings:stored={}})=>
    chrome.storage.local.set({uiSettings:{...stored,...uiSettings,
-    clearCacheOnExit:message.uiSettings?.clearCacheOnExit??true}})
+    clearCacheOnExit:message.uiSettings?.clearCacheOnExit??false}})
   ).catch(()=>{});
   try{
    const response=await startWholePageForTab(tab.id,{...message,uiSettings,trigger:'popup'});
@@ -689,7 +696,13 @@ async function checkReady(){const config=await engineConfig();
  if(config.enableModelReview&&!config.manualModelReview)await getApiConfig();
  return {mode:'local',enableModelReview:config.enableModelReview,manualModelReview:config.manualModelReview,...status};
 }
-async function clearAnnotationCache(){await loadCache();cache.clear();cacheLoaded=true;await chrome.storage.local.remove(CACHE_KEY);}
+async function clearAnnotationCache(){
+ await loadCache();
+ // Running tasks retain their old map; they cannot repopulate the new cache.
+ cache=new AnnotationCache();
+ await serializeCacheStorage(()=>chrome.storage.local.remove(CACHE_KEY));
+ cacheLoadReport={reason:'manual-clear',loaded:{local:0,model:0,legacy:0}};
+}
 async function markCurrentProviderStreamUnstable(){return;}
 async function testApi(){
  const config=await getApiConfig();
@@ -701,11 +714,26 @@ async function testApi(){
 }
 async function loadCache(){
  if(cacheLoaded)return;
- if(!cacheLoadPromise)cacheLoadPromise=(async()=>{await prepareCacheSession(chrome.storage,CACHE_KEY);await chrome.storage.local.remove('kraDictionaryReviewCacheV1Alignment3');const saved=(await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];if(Array.isArray(saved))for(const [key,value] of saved)cache.set(key,value);cacheLoaded=true;})().finally(()=>{cacheLoadPromise=null;});
+ if(!cacheLoadPromise)cacheLoadPromise=(async()=>{
+  const reason=await prepareCacheSession(chrome.storage,CACHE_KEY);
+  const saved=(await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY];
+  if(Array.isArray(saved))for(const row of saved){
+   if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||!row[1])continue;
+   cache.set(canonicalStoredCacheKey(row[0]),row[1]);
+  }
+  const loaded=cacheCounts(cache);
+  const settings=await chrome.storage.local.get(CACHE_LIMIT_SETTING);
+  const limit=normalizeAnnotationCacheLimit(settings[CACHE_LIMIT_SETTING]);
+  const retained=trimAnnotationCache(cache,limit);
+  cacheLoadReport={reason,storedEntries:Array.isArray(saved)?saved.length:0,loaded,retained};
+  cacheLoaded=true;
+ })().finally(()=>{cacheLoadPromise=null;});
  await cacheLoadPromise;
 }
 async function runModern(message,post,signal,manualSession,waitForReviewStart,waitForUnfinishedReview){
  await loadCache();const config=await engineConfig();
+ const cacheDiagnostic=(message,detail,level='info')=>post({type:'DIAGNOSTIC',operationId:messageForCache,diagnostic:{stage:'cache',level,message,detail:JSON.stringify(detail)}});
+ const messageForCache=message.operationId;
  if(config.manualModelReview&&!manualSession)throw Error('手动聊天审核需要网页输入框，请从网页标注入口启动。');
  const reviewConfiguration=async(manual)=>({...(
   manual?{provider:'manual',model:'manual-chat',endpoint:'manual://chat',
@@ -730,13 +758,27 @@ async function runModern(message,post,signal,manualSession,waitForReviewStart,wa
   const analyze=(text,modes,signal,progress)=>analyzeLocal(text,{...modes,allowNoDictionary},signal,progress);
   const analyzeBatch=(texts,modes,signal,progress)=>analyzeLocalBatch(texts,{...modes,allowNoDictionary},signal,progress);
   return runSentencePipeline({...message,nameProtection:config.nameProtection,filterDictionaryPeople:config.filterDictionaryPeople,reviewPosFilter:config.reviewPosFilter,experimentalLoanwordAudit:config.enableModelReview===true&&config.experimentalLoanword===true,experimentalHanjaAudit:config.enableModelReview===true&&config.experimentalHanja===true,smartSegmentation:config.smartSegmentation,reviewAllCandidates:config.reviewAllCandidates,reviewLocalConversions:config.enableModelReview&&config.reviewLocalConversions},post,{signal,enabled:config.enableModelReview,modelConfig,status,analyze,analyzeBatch,cache,waitForReviewStart,waitForUnfinishedReview,continuationModelConfig,persist:async map=>{
-   // Keep one paragraph string in the cache key; never persist that same
-   // full text in every target as well. Target.context is rehydrated after
-   // validateAnalysis() on a subsequent cache hit.
-   const compact=Array.from(map,([key,value])=>[key,
-    value&&Array.isArray(value.targets)?{...value,
-      targets:value.targets.map(({context,repair_context,...target})=>target)}:value]);
-   return chrome.storage.local.set({[CACHE_KEY]:compact});
+   return serializeCacheStorage(async()=>{
+    if(map!==cache)return;
+    try{
+     const settings=await chrome.storage.local.get(CACHE_LIMIT_SETTING);
+     if(map!==cache)return;
+     const limit=normalizeAnnotationCacheLimit(settings[CACHE_LIMIT_SETTING]);
+     const before=cacheCounts(map);
+     const after=trimAnnotationCache(map,limit);
+     if(before.local!==after.local||before.model!==after.model){
+      cacheDiagnostic('缓存达到容量上限，已淘汰较早使用的记录。',{
+       limitPerKind:limit,evicted:{local:before.local-after.local,model:before.model-after.model}
+      });
+     }
+     const compact=Array.from(map,([key,value])=>[key,
+      value&&Array.isArray(value.targets)?{...value,
+        targets:value.targets.map(({context,repair_context,...target})=>target)}:value]);
+     await chrome.storage.local.set({[CACHE_KEY]:compact});
+    }catch(error){
+     cacheDiagnostic('缓存持久化写入失败；本次已分析结果仍可显示，但重启后可能不能复用。',{error:String(error?.message||error),counts:cacheCounts(map)},'warning');
+    }
+   });
   }});
 }
 function legacyPlan(message){

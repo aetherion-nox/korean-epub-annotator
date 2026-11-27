@@ -100,6 +100,7 @@
      </label>
     </div>
     <p id="epubApiConcurrencyHint" class="api-concurrency-hint">默认同时请求 1 批。实际并发不会超过本次 EPUB 的首轮计划请求总数。</p>
+    <fieldset><legend>缓存</legend><label>每类缓存上限 <input id="annotationCacheLimit" type="number" min="1" max="10000" step="1" value="1000"></label><p>本地分析与模型审核分别计数，默认各 1000 条。</p><label><input id="clearCacheOnExit" type="checkbox"> 退出浏览器后清除缓存</label></fieldset>
     <fieldset class="epub-appearance">
      <legend>标注样式</legend>
      <label for="annotationSize">标注大小（相对正文） <output id="annotationSizeValue">75%</output></label>

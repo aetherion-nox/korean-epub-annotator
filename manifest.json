@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Korean EPUB Hanja & Loanword Annotator",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Annotate DRM-free Korean EPUBs using dictionary-based Hanja and loanword analysis, with resumable manual/API review and export a valid EPUB.",
   "permissions": [
     "activeTab",
