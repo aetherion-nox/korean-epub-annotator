@@ -20,7 +20,7 @@ test('EPUB Chrome icon sizes are generated from dedicated book artwork',()=>{
  assert.equal(new Set(variants.map(x=>x.hash)).size,4,'distinct image sizes, not one copied file');
  const base=readFileSync(new URL('../manifest.json',import.meta.url));
  const manifest=JSON.parse(base);
- assert.equal(manifest.version,'1.0.7');
+ assert.equal(manifest.version,'1.0.8');
  for(const [size,path] of Object.entries(manifest.icons))
   assert.equal(path,'icons/icon'+size+'.png');
  assert.equal(manifest.action.default_icon['16'],'icons/icon16.png');
