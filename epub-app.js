@@ -2,7 +2,10 @@ import {openEpub,ingestPipelineResult,exportEpub,sentenceChunks} from './epub-co
 import {manualRequestIdentity,sameManualTargets,transferManualAnswer} from './epub-recovery.js';
 import {getHistoryFile,listHistory,saveHistoryBook,setHistoryLimit} from './epub-history.js';
 
+import {bindCacheBypassControls} from './cache-bypass-settings.js';
 const el=id=>document.getElementById(id);
+const cacheBypass=bindCacheBypassControls(document,chrome.storage,error=>console.warn('缓存设置读取/保存失败',error));
+let forceRegenerateForBook=false;
 const tabs=[['annotateTab','annotatePanel'],['historyTab','historyPanel'],['settingsTab','settingsPanel']];
 let busy=false,download=null,currentPort=null,operationId=null,manualRequest=null;
 let totalChunks=0,doneChunks=0;
@@ -736,7 +739,7 @@ function runChunkAttempt(sentences,context,book,index,modes,progressive,recovery
    }
   },20000);
   try{port.postMessage({type:'START',operationId:portOperationId,sentences,context,modes,
-    progressiveAnnotation:progressive,planOnly,deferReview,reviewAll:false,forceRegenerate:false,
+    progressiveAnnotation:progressive,planOnly,deferReview,reviewAll:false,forceRegenerate:forceRegenerateForBook,
     epubBookSession:true,allowUserContinuation:true,sessionHanjaSeed,
     epubAcceptedRecovery:[...recovery.acceptedCheckpoints.values()],
     epubRejectedRecovery:[...recovery.rejectedCheckpoints.entries()],
@@ -805,6 +808,7 @@ async function handleFile(file){
  progress(1,'读取 EPUB','正在检查 EPUB 结构和阅读顺序…');
  try{
   const config=await chrome.storage.local.get(['manualModelReview','progressiveAnnotation','hanjaMode','loanwordMode','epubApiConcurrency']);
+  forceRegenerateForBook=await cacheBypass.snapshot();
   const modes={hanja:config.hanjaMode!==false,loanword:config.loanwordMode!==false};
   const requestedApiConcurrency=saneConcurrency(config.epubApiConcurrency);
   const usingApi=config.manualModelReview!==true;

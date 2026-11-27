@@ -18,6 +18,11 @@
   </header>
 
   <section id="annotatePanel" role="tabpanel" aria-labelledby="annotateTab">
+   <div class="mode-settings" aria-label="缓存设置">
+    <label><input id="forceRegenerate" type="checkbox"> 本次忽略缓存，重新分析文本</label>
+    <label id="persistentForceRow" hidden><input id="persistentForceRegenerate" type="checkbox"> 忽略缓存，重新分析文本</label>
+   </div>
+   <p class="api-concurrency-hint">临时选项退出浏览器后恢复关闭；持久选项跨会话保留。设置在下一本 EPUB 开始时生效，不清除已有缓存。</p>
    <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="选择或拖入 EPUB">
     <input id="epubFile" type="file" accept=".epub,application/epub+zip" hidden>
     <img class="book-icon" src="icons/icon128.png" alt="" aria-hidden="true">

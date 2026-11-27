@@ -78,9 +78,13 @@ export function protectRepeatedArticleNames(text,analysis){
       t.verified_person_hanja.includes(o.replacement);
     return sourced||verified;
    })));
-  if(permitted.length===t.options.length)return t;
+  // Block raw Hanja on existing targets that split or cross a known name.
+  // Never generate an extra review target.
+  const protected_name_boundary=!ranges.some(([a,b])=>a===t.start&&b===t.end);
+  if(permitted.length===t.options.length&&!protected_name_boundary)return t;
   protectedCount++;
-  return {...t,suspected_person_name:true,article_name_evidence:true,options:permitted};
+  return {...t,suspected_person_name:true,article_name_evidence:true,
+   ...(protected_name_boundary?{protected_name_boundary:true}:{}),options:permitted};
  });
  if(!protectedCount)return {analysis,protectedCount:0,names:[...names]};
  return {analysis:{...analysis,targets,
