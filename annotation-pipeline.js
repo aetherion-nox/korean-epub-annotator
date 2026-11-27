@@ -557,7 +557,7 @@ export async function runSentencePipeline(message,post,{signal,analyze=analyzeLo
    batchTotal:batches.length,context:batch.context,batchBudget:batch.budget},targets):undefined;
   return {owners,targets,repairScopes,manualBindings,manualPrepared};
  });
- if(config?.manualReview)emit('MANUAL_REVIEW_PLAN',{batches:preparedBatches.map(b=>b.manualPrepared)});
+ if(config?.manualReview&&preparedBatches.length)emit('MANUAL_REVIEW_PLAN',{batches:preparedBatches.map(b=>b.manualPrepared)});
  // A book group retains prior invalid API answers through all per-batch
  // fallback passes and manual/API continuations, avoiding repeated one-target
  // requests after two identical rejected suggestions from the same model.
