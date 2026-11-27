@@ -34,6 +34,7 @@ const fixture=()=>{
   arrayBuffer:async()=>bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)};
 };
 const ports=[];let nextSequence=0;
+const sessionCachePolicy={sessionForceRegenerate:true};
 class Port{
  constructor(){
   this.id=++nextSequence;this.sent=[];this.closed=false;this.operationId=null;this.sentences=null;
@@ -55,6 +56,8 @@ class Port{
    assert.equal(message.planOnly,false);
    this.operationId=message.operationId;
    this.sentences=message.sentences;
+   // Turning the session toggle off after the first group must not change this book.
+   if(ports.length===1)sessionCachePolicy.sessionForceRegenerate=false;
    this.emit({type:'REVIEW_PLAN',plannedBatches:1,plannedTargets:1,requestKind:'api'});
   }
   if(message.type==='RUN_REVIEW'){
@@ -88,6 +91,7 @@ globalThis.chrome={
   }
  },
  storage:{
+  session:{get:async key=>({[key]:sessionCachePolicy[key]})},
   local:{
    get:async()=>({manualModelReview:false,hanjaMode:true,loanwordMode:true,epubApiConcurrency:2}),
    set:async()=>{}
@@ -109,6 +113,7 @@ test('book-wide two-chunk preflight completes without a duplicated local START a
  const start=ports.flatMap(p=>p.sent.filter(x=>x.type==='START'));
  assert.equal(start.reduce((n,x)=>n+x.sentences.length,0),181);
  assert.ok(start.every(x=>x.deferReview&&x.reviewAll===false));
+ assert.ok(start.every(x=>x.forceRegenerate===true),'all chunks must inherit the book-start policy');
  const {books}=await listHistory();
  assert.deepEqual(books.map(book=>book.filename),['two-chunk-annotated.epub']);
  const waitFor=async condition=>{
@@ -159,6 +164,7 @@ test('API finishes every concurrent book group before reporting aggregate missin
   await handleFile(fixture());
   assert.equal(ports.length,2);
   assert.ok(ports.every(p=>p.sent.some(m=>m.type==='RUN_REVIEW')));
+  assert.ok(ports.every(p=>p.sent.find(m=>m.type==='START').forceRegenerate===false),'the next book uses the updated policy');
   assert.ok(ports.every(p=>p.closed),'all ports must finish before final error');
   assert.match(el('requestPlan').textContent,/已结束 2\/2 批/);
   assert.match(el('status').textContent,/1 组.*10 个目标/);

@@ -809,8 +809,10 @@ async function handleFile(file){
  el('selectedFile').textContent=file.name+' · '+(file.size/1024/1024).toFixed(2)+' MiB';
  progress(1,'读取 EPUB','正在检查 EPUB 结构和阅读顺序…');
  try{
-  const config=await chrome.storage.local.get(['manualModelReview','progressiveAnnotation','hanjaMode','loanwordMode','epubApiConcurrency']);
+  // Freeze the policy at the file-task boundary, before reading other settings.
   forceRegenerateForBook=await cacheBypass.snapshot();
+  addDiagnostic({stage:'cache-policy',level:'info',message:forceRegenerateForBook?'本书全程忽略缓存（含所有分组与续审）。':'本书全程允许复用缓存。'});
+  const config=await chrome.storage.local.get(['manualModelReview','progressiveAnnotation','hanjaMode','loanwordMode','epubApiConcurrency']);
   const modes={hanja:config.hanjaMode!==false,loanword:config.loanwordMode!==false};
   const requestedApiConcurrency=saneConcurrency(config.epubApiConcurrency);
   const usingApi=config.manualModelReview!==true;

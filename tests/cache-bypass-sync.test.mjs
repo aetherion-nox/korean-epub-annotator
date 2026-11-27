@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readCacheBypass} from '../cache-bypass-settings.js';
+import {readCacheBypass,bindCacheBypassControls} from '../cache-bypass-settings.js';
 import {canProposeExperimentalOption} from '../experimental-options.js';
 import {modelTargets} from '../choice-review.js';
 import {readFileSync} from 'node:fs';
@@ -23,4 +23,24 @@ test('whole book captures bypass before planning and sends it with each group',(
  const src=readFileSync(new URL('../epub-app.js',import.meta.url),'utf8');
  assert.match(src,/forceRegenerateForBook=await cacheBypass\.snapshot\(\)/);
  assert.match(src,/forceRegenerate:forceRegenerateForBook/);
+});
+
+test('in-progress file keeps its initial cache policy; only a new file reads changed settings',async()=>{
+ const session={sessionForceRegenerate:true},local={};
+ const storage={session:{get:async k=>({[k]:session[k]})},local:{get:async k=>({[k]:local[k]})}};
+ const controls=bindCacheBypassControls({getElementById:()=>null},storage);
+ const first=Object.freeze({forceRegenerate:await controls.snapshot()});
+ delete session.sessionForceRegenerate;
+ assert.equal(first.forceRegenerate,true);
+ assert.equal(await controls.snapshot(),false);
+ local.persistentForceRegenerate=true;
+ const second=Object.freeze({forceRegenerate:await controls.snapshot()});
+ delete local.persistentForceRegenerate;
+ assert.equal(second.forceRegenerate,true);
+ assert.equal(await controls.snapshot(),false);
+ const worker=readFileSync(new URL('../service-worker.js',import.meta.url),'utf8');
+ const modern=worker.slice(worker.indexOf('async function runModern('),worker.indexOf('async function runStreamingAnnotation('));
+ assert.ok(modern.includes('runSentencePipeline({...message,'));
+ assert.doesNotMatch(modern,/sessionForceRegenerate|persistentForceRegenerate|cacheBypassEnabled/);
+ 
 });
