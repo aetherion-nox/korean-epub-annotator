@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: epub-v1.0.7
+  group: epub-v1.0.8
   cancel-in-progress: false
 
 jobs:
@@ -40,11 +40,11 @@ jobs:
           import json
           from pathlib import Path
           manifest=json.loads(Path('manifest.json').read_text())
-          assert manifest['version']=='1.0.7'
+          assert manifest['version']=='1.0.8'
           assert 'content_scripts' not in manifest
           assert 'default_popup' not in manifest['action']
           package=json.loads(Path('package.json').read_text())
-          assert package['version']=='1.0.7'
+          assert package['version']=='1.0.8'
           assert package['dependencies']['fflate']=='0.8.2'
           assert Path('epub-fflate.js').stat().st_size>1000
           import struct
@@ -79,6 +79,7 @@ jobs:
           python3 tests/test_startup_stats.py
           python3 tests/test_preload.py
           node --test \
+            tests/name-homograph-payload.test.mjs \
             tests/epub-*.test.mjs \
             tests/v1.2.3-pooled-output-protocol.test.mjs \
             tests/v1.2.4-pool-list-only.test.mjs \
@@ -129,7 +130,7 @@ jobs:
           if license_path.exists():
               (root/'epub-fflate-LICENSE.txt').write_bytes(license_path.read_bytes())
               included.add(Path('epub-fflate-LICENSE.txt'))
-          output=root/'Korean-EPUB-Annotator-v1.0.7.zip'
+          output=root/'Korean-EPUB-Annotator-v1.0.8.zip'
           with zipfile.ZipFile(output,'w',allowZip64=True) as z:
               for p in sorted(included):
                   z.write(root/p,'Korean-EPUB-Annotator/'+p.as_posix(),
@@ -152,7 +153,7 @@ jobs:
               assert model.compress_type==zipfile.ZIP_DEFLATED
               assert model.file_size==75854705
               assert hashlib.sha256(z.read(model.filename)).digest()==hashlib.sha256((root/'runtime/models/cong.mdl').read_bytes()).digest()
-              assert json.loads(z.read('Korean-EPUB-Annotator/manifest.json'))['version']=='1.0.7'
+              assert json.loads(z.read('Korean-EPUB-Annotator/manifest.json'))['version']=='1.0.8'
           print('VERIFIED EPUB EXTENSION',output.name,'size',output.stat().st_size,'sha256',hashlib.sha256(output.read_bytes()).hexdigest())
           PY
 
@@ -160,6 +161,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.7 Korean-EPUB-Annotator-v1.0.7.zip \
-            --target "$GITHUB_SHA" --title "Korean EPUB Annotator v1.0.7" --latest \
-            --notes "同步网页 1.1.16 的任务级缓存策略；增加整书多分组回归测试，保留 OpenRouter、共享审核缓存、历史下载及续审。"
+          gh release create v1.0.8 Korean-EPUB-Annotator-v1.0.8.zip \
+            --target "$GITHUB_SHA" --title "Korean EPUB Annotator v1.0.8" --latest \
+            --notes "收紧词典人名范围判定。仅有人名义项时要求完整词界或 Kiwi NNP 证据，有普通义项时要求范围内的 NNP。部分重叠单独标记，并排除缺少词界和 NNP 证据的人名片段候选。"
