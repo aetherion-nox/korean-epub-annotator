@@ -61,7 +61,7 @@ for(const [label,provided,expected] of [
 test('EPUB cache fingerprint and review config use the same strict true test as Web',()=>{
  const source=readFileSync(new URL('../annotation-pipeline.js',import.meta.url),'utf8');
  assert.match(source,/hanjaReadingCheck:config\.hanjaReadingCheck===true/);
- assert.match(source,/fingerprint=JSON\.stringify\(\[config\.hanjaReadingCheck===true,/);
+ assert.match(source,/fingerprint=config&&JSON\.stringify\(\[\s*config\.hanjaReadingCheck===true,/);
  assert.doesNotMatch(source,/config\.hanjaReadingCheck!==false/);
 });
 

@@ -95,7 +95,7 @@ jobs:
             tests/v1.2.0-strict-invalid-review.test.mjs \
             tests/v1.1.56.61-retry-origin-permissions.test.mjs \
             tests/merged-frame-stability.test.mjs \
-            tests/experimental-options.test.mjs tests/cache-bypass-sync.test.mjs \
+            tests/experimental-options.test.mjs tests/cache-bypass-sync.test.mjs tests/paragraph-review-cache.test.mjs \
             tests/hunyuan-stream-audit.test.mjs \
             tests/feature-settings-persistence.test.mjs
 
