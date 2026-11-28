@@ -1,0 +1,27 @@
+name: Withdraw release v1.0.13
+on:
+  push:
+    branches: [maintenance/withdraw-v1.0.13]
+    paths: [.github/workflows/withdraw-v1-0-13.yml]
+permissions:
+  contents: write
+jobs:
+  withdraw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Withdraw exact release and retain source tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$REPO/releases/latest" --jq .tag_name)" = v1.0.13
+          test "$(gh api "repos/$REPO/releases/tags/v1.0.13" --jq .id)" = 461277173
+          gh release delete v1.0.13 --repo "$REPO" --yes
+          test "$(gh api "repos/$REPO/releases/latest" --jq .tag_name)" = v1.0.12
+          gh api "repos/$REPO/git/ref/tags/v1.0.13" --jq .ref
+      - name: Remove temporary maintenance branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh api --method DELETE "repos/$REPO/git/refs/heads/maintenance/withdraw-v1.0.13"
