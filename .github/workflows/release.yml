@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: epub-v1.0.9
+  group: epub-v1.0.10
   cancel-in-progress: false
 
 jobs:
@@ -40,11 +40,11 @@ jobs:
           import json
           from pathlib import Path
           manifest=json.loads(Path('manifest.json').read_text())
-          assert manifest['version']=='1.0.9'
+          assert manifest['version']=='1.0.10'
           assert 'content_scripts' not in manifest
           assert 'default_popup' not in manifest['action']
           package=json.loads(Path('package.json').read_text())
-          assert package['version']=='1.0.9'
+          assert package['version']=='1.0.10'
           assert package['dependencies']['fflate']=='0.8.2'
           assert Path('epub-fflate.js').stat().st_size>1000
           import struct
@@ -130,7 +130,7 @@ jobs:
           if license_path.exists():
               (root/'epub-fflate-LICENSE.txt').write_bytes(license_path.read_bytes())
               included.add(Path('epub-fflate-LICENSE.txt'))
-          output=root/'Korean-EPUB-Annotator-v1.0.9.zip'
+          output=root/'Korean-EPUB-Annotator-v1.0.10.zip'
           with zipfile.ZipFile(output,'w',allowZip64=True) as z:
               for p in sorted(included):
                   z.write(root/p,'Korean-EPUB-Annotator/'+p.as_posix(),
@@ -153,7 +153,7 @@ jobs:
               assert model.compress_type==zipfile.ZIP_DEFLATED
               assert model.file_size==75854705
               assert hashlib.sha256(z.read(model.filename)).digest()==hashlib.sha256((root/'runtime/models/cong.mdl').read_bytes()).digest()
-              assert json.loads(z.read('Korean-EPUB-Annotator/manifest.json'))['version']=='1.0.9'
+              assert json.loads(z.read('Korean-EPUB-Annotator/manifest.json'))['version']=='1.0.10'
           print('VERIFIED EPUB EXTENSION',output.name,'size',output.stat().st_size,'sha256',hashlib.sha256(output.read_bytes()).hexdigest())
           PY
 
@@ -161,6 +161,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.0.9 Korean-EPUB-Annotator-v1.0.9.zip \
-            --target "$GITHUB_SHA" --title "Korean EPUB Annotator v1.0.9" --latest \
-            --notes '支持 `<书名>(漢字)`、全角和成对双角号等括注写法。跨空格的括注按词拆分，两条词条共享完整出处，供后文审核。'
+          gh release create v1.0.10 Korean-EPUB-Annotator-v1.0.10.zip \
+            --target "$GITHUB_SHA" --title "Korean EPUB Annotator v1.0.10" --latest \
+            --notes '支持从带空格或 ^ 分隔的完整汉字词典词条提取独立候选；保留完整原语和释义，不跨空格生成审核目标，不覆盖本地确定标注。无需重新导入词典。'
