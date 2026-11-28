@@ -584,7 +584,7 @@ export async function runSentencePipeline(message,post,{signal,analyze=analyzeLo
    targets:targets.length,continuation:resuming});
   const reviewConfig={...config,rejectedChoiceHistory,
    epubInitialReview:message.epubBookSession===true&&!resuming&&config.manualReview!==true,
-   repairScopes,manualBindings,manualPrepared,batchNumber:batchIndex+1,batchTotal:batches.length,batchBudget:batch.budget,operationId:message.operationId,stream:progressive?true:config.stream,timeoutMs:config.timeoutMs||600000,enableModelReview:true,context:batch.context,
+   repairScopes,manualBindings,manualPrepared,batchNumber:batchIndex+1,batchTotal:batches.length,batchBudget:batch.budget,operationId:message.operationId,stream:progressive,timeoutMs:config.timeoutMs||600000,enableModelReview:true,context:batch.context,
    onPreview:progressive&&!config.manualReview?previewModelResults(owners,batch.items):undefined,
    onReviewTargetsSubmitted:wire=>{
     for(const t of wire)if(t.experimental_hanja_audit===true){
@@ -736,7 +736,7 @@ export async function runSentencePipeline(message,post,{signal,analyze=analyzeLo
     epubInitialReview:false,epubPooledRetry:true,epubUserForcedRetry:userForced,
     enableModelReview:true,smartSegmentation:false,
     dictionaryCorrectionOnly:false,context:group.context,batchBudget:group.budget,
-    stream:progressive?true:config.stream,
+    stream:progressive,
     onPreview:progressive?previewModelResults(owners,group.items):undefined,
     onRejectedChoice:(key,record)=>emit('EPUB_REJECTED_CHECKPOINT',{key,record}),
     onAccepted:async accepted=>{
