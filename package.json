@@ -10,7 +10,7 @@
     "test:epub": "node --test tests/epub-*.test.mjs",
     "prepare:epub-icons": "node scripts/prepare-epub-icons.mjs"
   },
-  "version": "1.0.13",
+  "version": "1.0.14",
   "devDependencies": {
     "fake-indexeddb": "6.2.5",
     "jsdom": "26.1.0",

@@ -68,7 +68,7 @@ test('EPUB cache fingerprint and review config use the same strict true test as 
 test('preview versions use Chrome manifest and semver package formats',()=>{
  const manifest=JSON.parse(readFileSync(new URL('../manifest.json',import.meta.url)));
  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url)));
- assert.equal(manifest.version,'1.0.13');
- assert.equal(pkg.version,'1.0.13');
+ assert.equal(manifest.version,'1.0.14');
+ assert.equal(pkg.version,'1.0.14');
  assert.equal(manifest.content_scripts,undefined);
 });
