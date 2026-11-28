@@ -159,7 +159,7 @@ test('missing EPUB mime, invalid spine and corrupt ZIP fail without generating a
 });
 test('Chrome entrypoint is self-contained and does not inject website content scripts',()=>{
  const manifest=JSON.parse(readFileSync(new URL('../manifest.json',import.meta.url),'utf8'));
- assert.equal(manifest.version,'1.0.11');
+ assert.equal(manifest.version,'1.0.12');
  assert.equal(manifest.action.default_popup,undefined);
  assert.equal(manifest.content_scripts,undefined);
  const app=readFileSync(new URL('../epub-app.js',import.meta.url),'utf8');

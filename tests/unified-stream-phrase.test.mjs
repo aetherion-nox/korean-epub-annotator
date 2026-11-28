@@ -22,3 +22,17 @@ test('spaced phrase candidates pass validation and remain model evidence',()=>{
  assert.ok(JSON.stringify(buildReviewPayload(text,valid.targets,{reviewPosFilter:false})).includes(phrase_origin));
  assert.throws(()=>validateAnalysis(text,{...data,targets:[{...targets[0],options:[targets[0].options[0],{...targets[0].options[1],phrase_origin:42}]}]}),/Invalid phrase origin metadata/);
 });
+
+test('derived foreign and mixed phrase options pass the file engine validator',()=>{
+ for(const [surface,type,replacement,segments] of [
+  ['인터넷','loanword','internet',undefined],
+  ['게임기','mixed','game機',[{start:0,end:2,surface:'게임',type:'loanword',replacement:'game'},{start:2,end:3,surface:'기',type:'hanja',replacement:'機'}]]
+ ]){
+  const phrase_origin=surface+' 장치 ('+replacement+'裝置)';
+  const option={choice_id:'c0',type,replacement,entry_id:1,definitions:['Complete dictionary phrase: '+phrase_origin],phrase_origin,...(segments?{segments}:{})};
+  const data={engine_version:'fixture',dictionary_fingerprint:'fixture',annotations:[],stats:{},targets:[{target_id:'t0',start:0,end:surface.length,surface,context:surface,options:[{choice_id:null,type:'keep',replacement:surface,entry_id:null,definitions:[]},option]}]};
+  const valid=validateAnalysis(surface,data);
+  assert.equal(valid.targets[0].options[1].replacement,replacement);
+  assert.ok(JSON.stringify(buildReviewPayload(surface,valid.targets,{reviewPosFilter:false})).includes(phrase_origin));
+ }
+});
